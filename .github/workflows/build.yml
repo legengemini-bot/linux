@@ -1,0 +1,48 @@
+name: Build Linux Kernel (ARM64)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      – hoolock
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Linux source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc bison flex libssl-dev \
+            libncurses5-dev libelf-dev dwarves ccache \
+            gcc-aarch64-linux-gnu
+
+      - name: Configure kernel (defconfig for ARM64)
+        run: |
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+
+      - name: Build kernel (Image.gz, DTB, modules)
+        run: |
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbs
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts/dtb
+          cp arch/arm64/boot/Image.gz artifacts/
+          cp arch/arm64/boot/dts/**/*.dtb artifacts/dtb/ || true
+          cp .config artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-build
+          path: artifacts
